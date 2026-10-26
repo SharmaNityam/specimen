@@ -50,6 +50,73 @@ def test_sensitive_header_is_blocked_without_leaking_in_report(tmp_path):
         assert private not in path.read_text(encoding="utf-8")
 
 
+def test_value_mapping_preserves_equality_and_distinct_identifiers(tmp_path):
+    config = config_for(tmp_path, "name,key,note\nAA,one,AA\nBB,two,BB\n", "import csv,sys\nrows=list(csv.DictReader(open(sys.argv[1])))\nif len(rows)==2: raise ValueError()\n")
+    report = reduce_csv(config)
+    assert report["status"] == "verified"
+    with (config.output_dir / "specimen.csv").open(newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert all(row["name"] == row["note"] for row in rows)
+    assert len({row["name"] for row in rows}) == 2
+    assert {row["name"] for row in rows}.isdisjoint({"AA", "BB"})
+
+
+@pytest.mark.parametrize("limit", [0, 1, 2, 3, 4, 5])
+def test_execution_count_never_exceeds_requested_limit(tmp_path, limit):
+    config = config_for(tmp_path, max_runs=limit)
+    report = reduce_csv(config)
+    assert report["runs"] <= limit
+    if report["status"] == "verified":
+        assert report["verification"]["final_runs"] == 2
+
+
+@pytest.mark.parametrize("host", ["[", "127.0.0.1:bad", "evil.test", "127.0.0.1.evil.test", "localhost@evil.test"])
+def test_invalid_host_is_rejected(tmp_path, host):
+    from fastapi.testclient import TestClient
+    from specimen.server import create_app
+    with TestClient(create_app(storage_root=tmp_path, docker_probe=lambda: False), raise_server_exceptions=False) as client:
+        response = client.get("/api/health", headers={"Host": host})
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize("origin", ["http://[", "null", "https://evil.example", "https://testserver"])
+def test_invalid_or_cross_origin_mutation_is_rejected(tmp_path, origin):
+    from fastapi.testclient import TestClient
+    from specimen.server import create_app
+    with TestClient(create_app(storage_root=tmp_path, docker_probe=lambda: False), raise_server_exceptions=False) as client:
+        response = client.post("/api/jobs", json={"example_id": "missing"}, headers={"Origin": origin})
+    assert response.status_code == 403
+
+
+def test_upload_runner_cannot_be_changed_to_local_by_form_data(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from specimen.server import create_app
+    observed = []
+    def inspect_config(config, on_event=None):
+        observed.append(config)
+        return {"status": "needs_review", "artifact_names": [], "blockers": ["verification test"]}
+    monkeypatch.setattr("specimen.server.reduce_csv", inspect_config)
+    with TestClient(create_app(storage_root=tmp_path, docker_probe=lambda: True)) as client:
+        response = client.post("/api/jobs/upload", files={
+            "file": ("../../outside.csv", b"value\nx\n"),
+            "script": ("../../outside.py", b"raise ValueError()\n"),
+        }, data={"runner": "local"})
+        assert response.status_code == 200
+        job_id = response.json()["id"]
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            job = client.get(f"/api/jobs/{job_id}").json()
+            if job["status"] in {"complete", "error"}:
+                break
+            time.sleep(.01)
+        assert observed and observed[0].runner == "docker"
+        assert observed[0].input_path.name == "source.csv"
+        assert observed[0].script_path.name == "source.py"
+        assert observed[0].input_path.is_relative_to(tmp_path)
+        assert not job["download_available"]
+        assert "before" not in (job["preview"] or {})
+
+
 def test_custom_exception_is_classified_from_actual_traceback(tmp_path):
     config = config_for(tmp_path, script="class Boom(Exception): pass\nraise Boom('synthetic private message')\n")
     result = run_script(config.script_path, config.input_path, "local")
@@ -200,6 +267,13 @@ def test_docker_restrictions_and_timeout_cleanup_are_requested(tmp_path, monkeyp
     monkeypatch.setattr("specimen.runner.shutil.which", lambda _: "/fake/docker")
     def execute(command, script_path, timeout, *args, **kwargs):
         calls.append(command)
+        mounts = [arg for arg in command if arg.startswith("type=bind,src=")]
+        assert len(mounts) == 2
+        for mount in mounts:
+            source = Path(mount.split("src=", 1)[1].split(",dst=", 1)[0])
+            original = config.script_path if "dst=/work/script.py" in mount else config.input_path
+            assert source.resolve() != original.resolve()
+            assert source.read_bytes() == original.read_bytes()
         return Execution(-9, None, "TimeoutError", None, timed_out=True)
     monkeypatch.setattr("specimen.runner._execute", execute)
     monkeypatch.setattr("specimen.runner.subprocess.run", lambda command, **kwargs: calls.append(command))

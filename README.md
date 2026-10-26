@@ -4,6 +4,8 @@
 
 Specimen is an early local tool for deterministic CSV/Python failures. It does not prove that two executions have the same root cause, guarantee a globally smallest CSV, or guarantee complete anonymization. Pseudonymization preserves structure and can leave identifying context in data that was not selected for replacement. Review every artifact before sharing it.
 
+![Specimen dashboard showing a verified one-row Unicode reproduction](docs/images/specimen.png)
+
 ## Quickstart
 
 Requires Python 3.11 or newer and [uv](https://docs.astral.sh/uv/). Python 3.12 is the recommended runtime. From the repository root:
@@ -21,7 +23,7 @@ To open the local dashboard:
 uv run specimen serve
 ```
 
-Then open [http://127.0.0.1:8765](http://127.0.0.1:8765). The dashboard uses bundled synthetic demos without Docker. Uploads are disabled until Docker is available with the `python:3.12-slim` image; see [Using your own files](#using-your-own-files).
+Then open [http://127.0.0.1:8765](http://127.0.0.1:8765). The dashboard uses bundled synthetic demos without Docker. Uploads are disabled until Docker is available with the `python:3.12-slim` image; see [Using your own files](#reduce-your-own-files).
 
 ## Try the bundled cases
 
@@ -97,7 +99,7 @@ SPECIMEN_MODEL_API_KEY
 
 See [.env.example](.env.example) for names only; it is not loaded automatically. Set the variables in your shell or environment. The adviser is requested once before reduction and can suggest sensitive column positions and a bounded strategy. It receives column positions and coarse aggregate metadata (such as length and uniqueness buckets), not cell values or header names. Advice is parsed and validated; it does not decide whether the failure is verified. No model calls occur inside the deletion search. Do not enable it unless you are comfortable sending those coarse data properties to your configured endpoint. HTTP endpoints are accepted only for loopback hosts; remote endpoints must use HTTPS.
 
-Alan development workflow status is documented separately. This repository does not claim a verified Alan API connection, and Specimen does not require one.
+See the [build and verification log](docs/BUILD_LOG.md) for the Alan development workflow and actual test results. This repository does not claim a verified Alan API connection, and Specimen does not require one.
 
 ## Development
 

@@ -271,6 +271,8 @@
     fillList(els.transforms, transformationEntries(report.transformations), 'No transformations reported.');
     fillList(els.blockers, report.blockers, 'No unresolved values reported.');
     const verified = status === 'verified';
+    text(document.querySelector('.fingerprint-mark'), verified ? 'FINAL REPLAYS MATCH' : 'BASELINE ONLY');
+    text(document.querySelector('#verification-heading'), verified ? 'Same failure, checked again.' : 'Verification needs review.');
     els.seal.className = `verification-seal ${verified ? 'verified' : 'unverified'}`;
     text(els.seal.querySelector('span'), verified ? 'VERIFIED' : 'REVIEW');
     text(els.seal.querySelector('b'), verified ? '✓' : '…');
@@ -289,7 +291,7 @@
     if (Array.isArray(value)) return String(value.length);
     if (typeof value === 'object') {
       const total = value.final_runs ?? value.repeats ?? value.runs ?? value.count;
-      return total == null ? (value.status ? String(value.status).replaceAll('_', ' ') : 'Recorded') : String(total);
+      return total == null ? '0' : String(total);
     }
     return String(value);
   }
@@ -297,7 +299,7 @@
     if (value && typeof value === 'object') {
       const runs = value.final_runs ?? value.repeats ?? value.runs;
       if (runs != null) return `${runs} final replay${Number(runs) === 1 ? '' : 's'}`;
-      return value.message || 'repeat runs recorded';
+      return 'no final replay verified';
     }
     return 'final replay runs';
   }
@@ -314,7 +316,7 @@
     const columns = value.sensitive_columns;
     const changed = value.values_changed;
     if (columns != null && Number.isFinite(Number(columns))) entries.push(`${formatNumber(columns)} sensitive column${Number(columns) === 1 ? '' : 's'} selected`);
-    if (changed != null && Number.isFinite(Number(changed))) entries.push(`${formatNumber(changed)} distinct source value${Number(changed) === 1 ? '' : 's'} replaced consistently`);
+    if (changed != null && Number.isFinite(Number(changed))) entries.push(`${formatNumber(changed)} distinct sensitive source value${Number(changed) === 1 ? '' : 's'} identified`);
     if (typeof value.strategy === 'string' && value.strategy) entries.push(`Replacement strategy: ${value.strategy}`);
     for (const [key, item] of Object.entries(value)) {
       if (['sensitive_columns', 'values_changed', 'strategy'].includes(key) || item == null) continue;
@@ -334,7 +336,7 @@
     const status = String(report.status || '').toLowerCase();
     const baselineRuns = Number(verification?.baseline_runs);
     const finalRuns = Number(verification?.final_runs);
-    const baseline = Number.isFinite(baselineRuns) && baselineRuns >= 2 ? status !== 'unstable' : null;
+    const baseline = Number.isFinite(baselineRuns) && baselineRuns >= 2 ? Boolean(report.baseline_fingerprint) && status !== 'unstable' : null;
     const final = Number.isFinite(finalRuns) && finalRuns >= 2
       ? report.baseline_fingerprint != null && verification?.final_fingerprint === report.baseline_fingerprint
       : null;

@@ -123,6 +123,35 @@ def _append_event(job: Job, event: dict[str, Any]) -> None:
         del job.events[:-_MAX_EVENTS]
 
 
+def _mark_privacy_review(output: Path, report: dict[str, Any]) -> None:
+    """Turn an artifact-scan failure into a review result with no candidate."""
+    for name in ("specimen.csv", "repro.py"):
+        try:
+            (output / name).unlink()
+        except OSError:
+            pass
+    report["status"] = "needs_review"
+    blockers = report.get("blockers")
+    if not isinstance(blockers, list):
+        blockers = []
+    blockers.append("public artifact privacy checks did not pass")
+    report["blockers"] = blockers
+    report["artifact_names"] = ["report.json", "REPORT.md"]
+    safe_report = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
+    try:
+        (output / "report.json").write_text(safe_report, encoding="utf-8")
+        (output / "REPORT.md").write_text(
+            "# Specimen report\n\n"
+            "Status: **needs_review**\n\n"
+            "A public artifact privacy check did not pass. Candidate files were removed; review the source locally.\n",
+            encoding="utf-8",
+        )
+    except OSError:
+        # The job response still carries the safe generic blocker and never
+        # serves this private output directory directly.
+        pass
+
+
 def _model_assist(config: RunConfig, job: Job) -> None:
     try:
         from .model import advise
@@ -149,6 +178,7 @@ def _run_job(job: Job, config: RunConfig, before_path: Path | None,
             job.archive = build_artifact_zip(config.output_dir, source_path, script_path,
                                              sensitive_columns or [])
             if job.archive is None:
+                _mark_privacy_review(config.output_dir, report)
                 _append_event(job, {"type": "warning", "message": "Privacy checks blocked the evidence download."})
         # Upload after rows are eligible for display only after the full
         # public-artifact scan passes. In particular, an email copied into an
@@ -221,10 +251,32 @@ def create_app(*, example_root: Path | None = None, storage_root: Path | None = 
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
             origin = request.headers.get("origin")
             if origin:
-                parsed = urlsplit(origin)
-                if parsed.scheme not in {"http", "https"} or parsed.netloc.lower() != host:
+                try:
+                    parsed = urlsplit(origin)
+                    # Touch the parsed authority fields here. They can raise on
+                    # malformed values such as `http://[` even when urlsplit
+                    # itself accepted the string.
+                    origin_host = parsed.hostname
+                    parsed.port
+                    valid = (
+                        parsed.scheme == request.url.scheme
+                        and parsed.netloc.lower() == host
+                        and origin_host is not None
+                        and parsed.username is None
+                        and parsed.password is None
+                        and parsed.path in {"", "/"}
+                        and not parsed.query
+                        and not parsed.fragment
+                    )
+                except ValueError:
+                    valid = False
+                if not valid:
                     return JSONResponse({"detail": "Cross-origin mutations are not allowed."}, status_code=403)
-        return await call_next(request)
+            elif request.headers.get("sec-fetch-site", "").casefold() == "cross-site":
+                return JSONResponse({"detail": "Cross-origin mutations are not allowed."}, status_code=403)
+        response = await call_next(request)
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
     def docker_ready() -> bool:
         nonlocal probe_cache
@@ -329,8 +381,24 @@ def create_app(*, example_root: Path | None = None, storage_root: Path | None = 
                     raise HTTPException(status_code=413, detail="Upload exceeds the combined size limit.")
             except ValueError:
                 raise HTTPException(status_code=400, detail="Invalid upload size.")
+        max_body_bytes = _MAX_CSV_BYTES + _MAX_SCRIPT_BYTES + 64 * 1024
+        original_receive = request._receive
+        received_bytes = 0
+
+        async def bounded_receive():
+            nonlocal received_bytes
+            message = await original_receive()
+            if message.get("type") == "http.request":
+                received_bytes += len(message.get("body", b""))
+                if received_bytes > max_body_bytes:
+                    raise HTTPException(status_code=413, detail="Upload exceeds the combined size limit.")
+            return message
+
+        request._receive = bounded_receive
         try:
             form = await request.form(max_files=2, max_fields=4, max_part_size=64 * 1024)
+        except HTTPException:
+            raise
         except Exception:
             raise HTTPException(status_code=400, detail="Could not read the upload form.")
         csv_file, script_file = form.get("file"), form.get("script")

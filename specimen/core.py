@@ -184,6 +184,13 @@ def _contains_sensitive_substring(values: list[str], text: str) -> bool:
     return any(value and value in text for value in values)
 
 
+def _file_contains_sensitive_substring(values: list[str], path: Path) -> bool:
+    try:
+        return _contains_sensitive_substring(values, path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError):
+        return True
+
+
 def _scrub_metadata(value: Any, sensitive_values: list[str]) -> Any:
     if isinstance(value, str):
         for sensitive in sorted(sensitive_values, key=lambda item: (-len(item), item)):
@@ -439,6 +446,7 @@ def reduce_csv(config: RunConfig, on_event=None) -> dict[str, Any]:
             verified_rows: list[list[str]] | None = None
             used_strategy = None
             last_reason = "sanitized candidate did not preserve the baseline failure"
+            privacy_blocked = False
             pseudonym_key = secrets.token_bytes(32)
             for strategy in strategies:
                 for attempt in range(8):
@@ -469,6 +477,9 @@ def reduce_csv(config: RunConfig, on_event=None) -> dict[str, Any]:
                         continue
                     candidate_path = temp_root / f"sanitized-{strategy}-{attempt}.csv"
                     _write_csv(candidate_path, header, candidate_rows)
+                    if _file_contains_sensitive_substring(values, candidate_path):
+                        last_reason = "a sensitive source substring remains in serialized CSV"
+                        continue
                     execution = execute_csv(candidate_path)
                     if execution is None:
                         exhaustive = False
@@ -484,12 +495,17 @@ def reduce_csv(config: RunConfig, on_event=None) -> dict[str, Any]:
                     working_rows = list(candidate_rows)
                     minimality_runs = 0
                     budget_stopped = False
+                    privacy_stopped = False
                     changed = True
                     while changed:
                         changed = False
                         for row_index in range(len(working_rows)):
                             trial_rows = [row for i, row in enumerate(working_rows) if i != row_index]
                             _write_csv(candidate_path, header, trial_rows)
+                            if _file_contains_sensitive_substring(values, candidate_path):
+                                privacy_stopped = True
+                                last_reason = "a sensitive source substring remains in serialized CSV"
+                                break
                             trial = execute_csv(candidate_path)
                             if trial is None:
                                 exhaustive = False
@@ -507,6 +523,10 @@ def reduce_csv(config: RunConfig, on_event=None) -> dict[str, Any]:
                             break
                     if budget_stopped:
                         report["minimized"] = False
+                        break
+                    if privacy_stopped:
+                        report["minimized"] = False
+                        privacy_blocked = True
                         break
                     report["verification"]["sanitized_minimality_runs"] = minimality_runs
                     # Each execution gets a pristine candidate because tested
@@ -542,7 +562,7 @@ def reduce_csv(config: RunConfig, on_event=None) -> dict[str, Any]:
                     break
 
             if verified_rows is None:
-                report["status"] = "budget_exhausted" if not exhaustive else "needs_review"
+                report["status"] = "needs_review" if privacy_blocked or exhaustive else "budget_exhausted"
                 report["blockers"].append(last_reason)
                 return finish()
             if len(set(mapping.values())) != len(mapping):
@@ -563,6 +583,10 @@ def reduce_csv(config: RunConfig, on_event=None) -> dict[str, Any]:
 
             specimen_path = output / "specimen.csv"
             _write_csv(specimen_path, header, verified_rows)
+            if _file_contains_sensitive_substring(values, specimen_path):
+                report["status"] = "needs_review"
+                report["blockers"].append("a sensitive source substring remains in serialized CSV")
+                return finish()
             report["status"] = "verified"
             report["final_rows"] = len(verified_rows)
             report["transformations"]["strategy"] = used_strategy

@@ -48,7 +48,7 @@ def _terminate_group(proc: subprocess.Popen) -> None:
         except ProcessLookupError:
             return
     try:
-        proc.wait(timeout=0.35)
+        proc.wait(timeout=0.02)
     except subprocess.TimeoutExpired:
         pass
     # The leader may exit on SIGTERM while a child remains in the same group.
@@ -69,7 +69,7 @@ def _cleanup_descendants(proc: subprocess.Popen) -> None:
         os.killpg(proc.pid, signal.SIGTERM)
     except (ProcessLookupError, PermissionError, AttributeError):
         return
-    time.sleep(0.05)
+    time.sleep(0.01)
     try:
         os.killpg(proc.pid, signal.SIGKILL)
     except (ProcessLookupError, PermissionError, AttributeError):

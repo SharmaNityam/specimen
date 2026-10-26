@@ -8,7 +8,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='3' width='12' height='12' fill='%23e35f43'/%3E%3Crect x='17' y='3' width='12' height='12' fill='%23e35f43' fill-opacity='.65'/%3E%3Crect x='3' y='17' width='12' height='12' fill='%23e35f43' fill-opacity='.78'/%3E%3Crect x='17' y='17' width='12' height='12' fill='%23e35f43' fill-opacity='.42'/%3E%3C/svg%3E">
   <title>Specimen — Shrink the data. Keep the bug.</title>
   <link rel="stylesheet" href="/style.css">
-  <script src="/app.js" defer></script>
+  <script src="/app.js?v=0.1.0" defer></script>
 </head>
 <body>
   <div class="app-shell">
@@ -111,7 +111,7 @@
                 <div class="metric"><span class="metric-label micro">DATA REDUCTION</span><strong id="metric-reduction">—</strong><span class="metric-sub">of original rows removed</span></div>
                 <div class="metric"><span class="metric-label micro">VERIFICATION</span><strong id="metric-verification">—</strong><span class="metric-sub" id="metric-verification-sub">repeat runs</span></div>
               </div>
-              <div class="fingerprint-block"><div class="fingerprint-label"><span class="micro">BASELINE FINGERPRINT</span><span class="fingerprint-mark">SAME FAILURE</span></div><code id="fingerprint">—</code><p id="fingerprint-note">The failure signature is captured before reduction and compared against the final specimen.</p></div>
+              <div class="fingerprint-block"><div class="fingerprint-label"><span class="micro">BASELINE FINGERPRINT</span><span class="fingerprint-mark">BASELINE ONLY</span></div><code id="fingerprint">—</code><p id="fingerprint-note">The failure signature is captured before reduction and compared against the final specimen.</p></div>
               <div class="details-grid">
                 <div class="detail-block"><span class="micro">TRANSFORMATIONS</span><ul id="transform-list"><li>No transformations reported.</li></ul></div>
                 <div class="detail-block"><span class="micro">PRIVACY REVIEW</span><ul id="blocker-list"><li>No unresolved values reported.</li></ul></div>
@@ -121,7 +121,7 @@
           <aside class="panel verification-card">
             <span class="panel-index micro">REPRODUCIBILITY</span>
             <div class="verification-seal" id="verification-seal"><span>WAITING</span><b>—</b></div>
-            <h3>Same failure,<br>checked again.</h3>
+            <h3 id="verification-heading">Same failure,<br>checked again.</h3>
             <p id="verification-copy">A shareable result needs a stable baseline, a preserved failure, and a privacy review.</p>
             <div class="verification-checks" id="verification-checks"><span><i>○</i> Baseline consistency</span><span><i>○</i> Final replay</span><span><i>○</i> Sensitive values</span></div>
           </aside>

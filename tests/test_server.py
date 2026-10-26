@@ -22,7 +22,9 @@ def _wait(client: TestClient, job_id: str, timeout: float = 25):
 def test_health_and_examples_contract(tmp_path):
     app = create_app(storage_root=tmp_path, docker_probe=lambda: False)
     with TestClient(app) as client:
-        health = client.get("/api/health").json()
+        response = client.get("/api/health")
+        assert response.headers["cache-control"] == "no-store"
+        health = response.json()
         assert health["status"] == "ok"
         assert health["docker_available"] is False
         assert set(health["model"]) == {"configured", "model"}
@@ -76,9 +78,13 @@ def test_upload_without_docker_traversal_and_cross_origin_are_rejected(tmp_path)
         })
         assert upload.status_code == 503
         assert client.get("/api/jobs/../../etc/passwd").status_code == 404
-        cross = client.post("/api/jobs", json={"example_id": "unicode"},
-                            headers={"Origin": "https://evil.example"})
-        assert cross.status_code == 403
+        for origin in ("https://evil.example", "http://[", "https://testserver"):
+            cross = client.post("/api/jobs", json={"example_id": "unicode"},
+                                headers={"Origin": origin})
+            assert cross.status_code == 403
+        fetch_cross_site = client.post("/api/jobs", json={"example_id": "unicode"},
+                                       headers={"Sec-Fetch-Site": "cross-site"})
+        assert fetch_cross_site.status_code == 403
 
 
 def test_upload_job_never_returns_the_original_preview(tmp_path, monkeypatch):
@@ -126,6 +132,8 @@ def test_upload_job_never_returns_the_original_preview(tmp_path, monkeypatch):
         }, data={"sensitive_columns": "email"})
         assert leaked.status_code == 200
         blocked = _wait(client, leaked.json()["id"])
+        assert blocked["report"]["status"] == "needs_review"
+        assert "public artifact privacy checks did not pass" in blocked["report"]["blockers"]
         assert blocked["preview"] == {"after": []}
         assert blocked["download_available"] is False
 
