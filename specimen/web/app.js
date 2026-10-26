@@ -261,14 +261,14 @@
     text(els.resultStatus.querySelector('span'), status.replaceAll('_', ' '));
     text(els.metricRows, formatNumber(report.final_rows)); text(els.metricRowSub, `from ${formatNumber(report.original_rows)} rows`);
     const original = Number(report.original_rows), reduced = Number(report.final_rows);
-    const percent = original > 0 && Number.isFinite(reduced) ? Math.max(0, Math.round((1 - reduced / original) * 100)) : null;
-    text(els.metricReduction, percent == null ? '—' : `${percent}%`);
+    const percent = original > 0 && Number.isFinite(reduced) ? Math.max(0, (1 - reduced / original) * 100) : null;
+    text(els.metricReduction, percent == null ? '—' : `${percent.toFixed(1)}%`);
     const verification = report.verification;
     text(els.metricVerification, verificationCount(verification));
     text(els.metricVerificationSub, verificationDescription(verification));
     text(els.fingerprint, report.baseline_fingerprint == null ? 'Unavailable' : fingerprintText(report.baseline_fingerprint));
     text(els.fingerprintNote, report.sha256 ? `Specimen SHA-256 · ${report.sha256}` : 'The failure signature is captured before reduction and compared against the final specimen.');
-    fillList(els.transforms, report.transformations, 'No transformations reported.');
+    fillList(els.transforms, transformationEntries(report.transformations), 'No transformations reported.');
     fillList(els.blockers, report.blockers, 'No unresolved values reported.');
     const verified = status === 'verified';
     els.seal.className = `verification-seal ${verified ? 'verified' : 'unverified'}`;
@@ -306,6 +306,23 @@
     const nodes = entries.length ? entries.map((item) => { const li = document.createElement('li'); li.textContent = typeof item === 'string' ? item : safeObjectText(item); return li; }) : [Object.assign(document.createElement('li'), { textContent: emptyMessage })];
     target.replaceChildren(...nodes);
   }
+  function transformationEntries(value) {
+    if (value == null) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value !== 'object') return [String(value)];
+    const entries = [];
+    const columns = value.sensitive_columns;
+    const changed = value.values_changed;
+    if (columns != null && Number.isFinite(Number(columns))) entries.push(`${formatNumber(columns)} sensitive column${Number(columns) === 1 ? '' : 's'} selected`);
+    if (changed != null && Number.isFinite(Number(changed))) entries.push(`${formatNumber(changed)} distinct source value${Number(changed) === 1 ? '' : 's'} replaced consistently`);
+    if (typeof value.strategy === 'string' && value.strategy) entries.push(`Replacement strategy: ${value.strategy}`);
+    for (const [key, item] of Object.entries(value)) {
+      if (['sensitive_columns', 'values_changed', 'strategy'].includes(key) || item == null) continue;
+      const label = key.replaceAll('_', ' ');
+      entries.push(`${label}: ${typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean' ? item : 'recorded'}`);
+    }
+    return entries;
+  }
   function safeObjectText(value) {
     if (value && typeof value === 'object') {
       const label = value.description || value.action || value.type || value.name;
@@ -314,9 +331,15 @@
     return String(value);
   }
   function renderChecks(verification, report) {
-    const baseline = verification?.baseline_stable ?? verification?.baseline_consistent;
-    const final = verification?.final_preserved ?? verification?.failure_preserved ?? verification?.verified;
-    const privacy = !Array.isArray(report.blockers) || report.blockers.length === 0;
+    const status = String(report.status || '').toLowerCase();
+    const baselineRuns = Number(verification?.baseline_runs);
+    const finalRuns = Number(verification?.final_runs);
+    const baseline = Number.isFinite(baselineRuns) && baselineRuns >= 2 ? status !== 'unstable' : null;
+    const final = Number.isFinite(finalRuns) && finalRuns >= 2
+      ? report.baseline_fingerprint != null && verification?.final_fingerprint === report.baseline_fingerprint
+      : null;
+    const hasPrivacyBlocker = Array.isArray(report.blockers) && report.blockers.some((item) => /sensitive|privacy|secret|pseudonym/i.test(typeof item === 'string' ? item : safeObjectText(item)));
+    const privacy = status === 'verified' ? (Array.isArray(report.blockers) ? report.blockers.length === 0 : true) : hasPrivacyBlocker ? false : null;
     const checks = [['Baseline consistency', baseline], ['Final replay', final], ['Sensitive values', privacy]];
     els.verifyChecks.replaceChildren(...checks.map(([label, passed]) => {
       const item = document.createElement('span'); const mark = document.createElement('i');
@@ -339,6 +362,12 @@
     }
     if (data.preview) renderPreview(data.preview, job.isDemo);
     job.download_available = Boolean(data.download_available); els.download.disabled = !job.download_available;
+    window.requestAnimationFrame(() => {
+      document.getElementById('result')?.scrollIntoView({
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+        block: 'start'
+      });
+    });
   }
   els.download.addEventListener('click', () => {
     if (!state.activeJob || !state.activeJob.download_available) return;
