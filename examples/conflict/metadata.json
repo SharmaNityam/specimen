@@ -1,0 +1,9 @@
+{
+  "id": "conflict",
+  "name": "Required sensitive value",
+  "description": "The failure depends on one literal synthetic name that must be redacted.",
+  "rows": 240,
+  "sensitive_columns": ["name"],
+  "bug": "A required literal in a sensitive field causes the failure.",
+  "expected": "blocked"
+}

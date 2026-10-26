@@ -1,0 +1,9 @@
+{
+  "id": "relations",
+  "name": "Repeated relationship pair",
+  "description": "Two synthetic rows repeat the same email and customer identifier relationship.",
+  "rows": 1200,
+  "sensitive_columns": ["name", "email", "customer_id"],
+  "bug": "A repeated email and customer identifier pair is rejected.",
+  "expected": "verified"
+}

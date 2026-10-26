@@ -1,0 +1,9 @@
+{
+  "id": "unicode",
+  "name": "Unicode ASCII export",
+  "description": "A synthetic non-ASCII name cannot be written by an ASCII-only exporter.",
+  "rows": 1200,
+  "sensitive_columns": ["name", "email"],
+  "bug": "An ASCII output stream rejects a Unicode letter in a name.",
+  "expected": "verified"
+}

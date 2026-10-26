@@ -12,13 +12,17 @@ license = "MIT"
 dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1", "python-multipart>=0.0.18,<1"]
 
 [project.optional-dependencies]
-dev = ["pytest>=8,<10", "httpx>=0.27,<1", "playwright>=1.49,<2"]
+dev = ["pytest>=8,<10", "httpx>=0.27,<1"]
+browser = ["playwright>=1.49,<2"]
 
 [project.scripts]
 specimen = "specimen.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["specimen"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"examples" = "specimen/examples"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install development dependencies
+        run: uv sync --extra dev --locked
+      - name: Run unit and integration tests
+        run: uv run pytest
+      - name: Check dashboard JavaScript syntax
+        run: node --check specimen/web/app.js
+
+  wheel:
+    name: Build wheel and check bundled examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Build wheel
+        run: uv build --wheel
+      - name: Confirm wheel includes runnable example assets
+        run: |
+          python - <<'PY'
+          import glob
+          import zipfile
+
+          wheel, = glob.glob("dist/*.whl")
+          with zipfile.ZipFile(wheel) as archive:
+              names = set(archive.namelist())
+          required = {
+              "specimen/examples/unicode/data.csv",
+              "specimen/examples/unicode/repro.py",
+              "specimen/examples/unicode/metadata.json",
+              "specimen/examples/relations/data.csv",
+              "specimen/examples/conflict/data.csv",
+          }
+          missing = required - names
+          if missing:
+              raise SystemExit(f"wheel is missing example files: {sorted(missing)}")
+          PY
