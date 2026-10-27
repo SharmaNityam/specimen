@@ -74,13 +74,13 @@
             <div class="panel-head"><div><span class="panel-index micro">A — INPUT / OUTPUT</span><h3>Dataset preview</h3></div><span class="synthetic-tag micro" id="preview-tag">DEMO ONLY</span></div>
             <div class="preview-split">
               <div class="preview-side">
-                <div class="table-label"><span>BEFORE</span><span id="before-count">— rows</span></div>
-                <div class="table-wrap" id="before-table"><div class="empty-preview">Choose a demo to inspect<br>its synthetic input.</div></div>
+                <div class="table-label"><span>BEFORE</span><span class="table-meta"><span id="before-count">— rows</span><span class="scroll-controls"><button class="scroll-button" type="button" data-scroll-target="before-table" data-scroll-dir="-1" aria-label="Scroll before preview left" aria-disabled="true"><span aria-hidden="true">←</span></button><button class="scroll-button" type="button" data-scroll-target="before-table" data-scroll-dir="1" aria-label="Scroll before preview right" aria-disabled="true"><span aria-hidden="true">→</span></button></span></span></div>
+                <div class="table-wrap" id="before-table" role="region" tabindex="0" aria-label="Before preview: synthetic input rows. Scroll horizontally to see full values."><div class="empty-preview">Choose a demo to inspect<br>its synthetic input.</div></div>
               </div>
               <div class="preview-divider" aria-hidden="true"><span>→</span></div>
               <div class="preview-side">
-                <div class="table-label"><span>SPECIMEN</span><span id="after-count">— rows</span></div>
-                <div class="table-wrap" id="after-table"><div class="empty-preview">Your reduced rows<br>will appear here.</div></div>
+                <div class="table-label"><span>SPECIMEN</span><span class="table-meta"><span id="after-count">— rows</span><span class="scroll-controls"><button class="scroll-button" type="button" data-scroll-target="after-table" data-scroll-dir="-1" aria-label="Scroll specimen preview left" aria-disabled="true"><span aria-hidden="true">←</span></button><button class="scroll-button" type="button" data-scroll-target="after-table" data-scroll-dir="1" aria-label="Scroll specimen preview right" aria-disabled="true"><span aria-hidden="true">→</span></button></span></span></div>
+                <div class="table-wrap" id="after-table" role="region" tabindex="0" aria-label="Specimen preview: reduced rows. Scroll horizontally to see full values."><div class="empty-preview">Your reduced rows<br>will appear here.</div></div>
               </div>
             </div>
             <div class="preview-foot"><span class="mini-legend"><i class="legend-dot sensitive"></i> replaced sensitive value</span><span id="preview-caption">Values shown are synthetic demo data.</span></div>

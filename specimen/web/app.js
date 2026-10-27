@@ -130,13 +130,27 @@
     els.runState.classList.add('active'); text(els.runState.querySelector('span:last-child'), 'Preparing verification…');
     els.resultEmpty.classList.remove('hidden'); els.resultContent.classList.add('hidden');
     els.download.disabled = true; state.activeJob = null;
+    els.seal.className = 'verification-seal';
+    text(els.seal.querySelector('span'), 'CHECKING');
+    text(els.seal.querySelector('b'), '…');
+    text($('#verification-heading'), 'A new check is running.');
+    text(els.verifyCopy, 'Previous results are cleared. This run must finish its own baseline, replay, and privacy checks.');
+    renderChecks({}, {});
     clearPreview('Processing synthetic input…', '— rows', 'Awaiting reduced rows…');
   }
   function clearPreview(before, count, after) {
     emptyTable(els.beforeTable, before); emptyTable(els.afterTable, after);
     text(els.beforeCount, count); text(els.afterCount, '— rows');
   }
-  function emptyTable(target, message) { const div = document.createElement('div'); div.className = 'empty-preview'; div.textContent = message; target.replaceChildren(div); }
+  function emptyTable(target, message) { const div = document.createElement('div'); div.className = 'empty-preview'; div.textContent = message; target.replaceChildren(div); syncTableScroll(); }
+  function syncTableScroll() {
+    document.querySelectorAll('[data-scroll-target]').forEach((button) => {
+      const region = document.getElementById(button.dataset.scrollTarget);
+      const room = region ? region.scrollWidth - region.clientWidth : 0;
+      const atEdge = room <= 1 || (Number(button.dataset.scrollDir) < 0 ? region.scrollLeft <= 1 : region.scrollLeft >= room - 1);
+      button.setAttribute('aria-disabled', String(atEdge));
+    });
+  }
   async function startDemo(id) {
     if (state.busy) return;
     const example = state.examples.find((item) => item.id === id);
@@ -252,7 +266,7 @@
       columns.forEach((column) => { const td = document.createElement('td'); const value = row?.[column]; td.textContent = hideValues ? '••••••' : value == null ? '—' : typeof value === 'string' ? value : JSON.stringify(value); if (hideValues || (typeof value === 'string' && /^(?:<[^>]+>|\*+|redacted)/i.test(value))) td.classList.add('redacted-value'); line.append(td); });
       body.append(line);
     });
-    wrap.append(head, body); target.replaceChildren(wrap);
+    wrap.append(head, body); target.replaceChildren(wrap); syncTableScroll();
   }
   function renderReport(report, job) {
     els.resultEmpty.classList.add('hidden'); els.resultContent.classList.remove('hidden');
@@ -405,5 +419,16 @@
     }
     await loadExamples();
   }
+  document.querySelectorAll('[data-scroll-target]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const region = document.getElementById(button.dataset.scrollTarget);
+      if (!region || button.getAttribute('aria-disabled') === 'true') return;
+      const step = Math.max(120, Math.round(region.clientWidth * 0.75));
+      const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+      region.scrollBy({ left: Number(button.dataset.scrollDir) * step, behavior });
+    });
+  });
+  document.querySelectorAll('.table-wrap').forEach((region) => region.addEventListener('scroll', syncTableScroll, { passive: true }));
+  window.addEventListener('resize', syncTableScroll);
   initialize();
 })();

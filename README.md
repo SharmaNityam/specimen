@@ -79,6 +79,8 @@ Use `uv run specimen --help` and `uv run specimen demo --help` for the installed
 
 ## Read the result
 
+Pseudonym mappings use a fresh random key per run, so replacement bytes and artifact hashes can change across runs even when the retained row count and failure signature are stable.
+
 The engine runs the baseline more than once, records a compact fingerprint for the observed exception, removes rows while replaying the script, pseudonymizes selected values consistently, and repeats the final check. It uses bounded deterministic row deletion; when exhaustive row-deletion passes complete, the result is **1-minimal by row deletion**: removing any one remaining row no longer preserves the fingerprint under the tested script and configuration. This is not a globally smallest CSV and does not establish the underlying cause.
 
 The fingerprint identifies the exception type and the reproducer's final script frame (line and function). It intentionally omits exception messages and raw stdout/stderr. This is evidence that the same observed signature survived, not proof that the same root cause occurred. A script can raise the same exception at the same line for different reasons.
